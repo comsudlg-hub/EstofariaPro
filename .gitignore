@@ -1,0 +1,16 @@
+﻿# Flutter/Dart
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Node.js
+node_modules/
+npm-debug.log
+.env
+
+# General
+*.log
+*.tmp
+*.swp
+.DS_Store
