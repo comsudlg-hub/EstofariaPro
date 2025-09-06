@@ -34,7 +34,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
       setState(() => _isLoading = true);
       
       try {
-        final usuario = await AuthService.cadastro(
+        final authService = AuthService();
+         final usuario = await authService.cadastro(
           _nomeController.text,
           _emailController.text,
           _senhaController.text,

@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../../models/usuario_model.dart';
 
@@ -21,12 +22,12 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
       
       try {
-        final usuario = await AuthService.login(
+        final authService = AuthService();
+        final usuario = await authService.login(
           _emailController.text,
           _senhaController.text,
         );
         
-        // Verificar se o usuário não é nulo antes de redirecionar
         if (usuario != null) {
           AuthService.redirectToDashboard(context, usuario);
         } else {
@@ -37,10 +38,17 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         }
+      } on FirebaseAuthException catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro de autenticação: ${e.code}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text('Erro inesperado: $e'),
             backgroundColor: Colors.red,
           ),
         );

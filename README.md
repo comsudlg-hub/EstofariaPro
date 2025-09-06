@@ -40,13 +40,6 @@ Veja [docs/estado-atual.md](docs/estado-atual.md) para detalhes completos da est
 ✅ 4 dashboards diferentes (básicos)
 ✅ Identidade visual implementada
 
-🚧 Em desenvolvimento:
-
-* Integração com Firebase
-* Funcionalidades completas dos dashboards
-* Sistema de pedidos e orçamentos
-
-
 
 \## 🚧 Status de Build
 
@@ -86,7 +79,23 @@ Veja [docs/estado-atual.md](docs/estado-atual.md) para detalhes completos da est
 
 \- \[ ] Implementação autenticação Firebase Auth
 
-\- \[ ] Integração com APIs reais
+\- \[  ] Integração com APIs reais
+
+NOTA do Supervisor: Por problemas técnicos não conseguimos subir ultimo versionamento, segue relatório do que foi realizado:
+
+🚧 Realizado
+
+* Integração com Firebase - Completa com android, macos, web, ios e Windows. 
+Integração com APIs reais.Implementação autenticação Firebase Auth.
+Faltou realizar o versionamento e atualização das documentações.
+
+
+Em andamento:
+* Funcionalidades completas dos dashboards
+* Sistema de pedidos e orçamentos
+
+Fim da Nota do Supervisor.
+
 
 
 

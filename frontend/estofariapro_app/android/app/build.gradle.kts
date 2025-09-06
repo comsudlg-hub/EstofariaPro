@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    id("com.google.gms.google-services") version "4.4.0"
+    id("com.google.gms.google-services") // Apenas aplicar, sem versão
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.compersonalite.estofariapro"
-        minSdk = 23 // <-- ALTERAR DE flutter.minSdkVersion PARA 23
+        minSdk = 23 // Atualizado para padronização
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -35,6 +35,7 @@ android {
 }
 
 dependencies {
+    // Firebase BOM gerencia automaticamente as versões dos serviços Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.0.0"))
 }
 

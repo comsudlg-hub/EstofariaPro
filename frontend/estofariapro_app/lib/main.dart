@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 // Import das telas
 import 'screens/common/home_screen.dart';
@@ -11,7 +13,11 @@ import 'screens/dashboards/fornecedor_dashboard.dart';
 import 'screens/dashboards/cliente_dashboard.dart';
 import 'screens/dashboards/admin_dashboard.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const EstofariaProApp());
 }
 
