@@ -1,55 +1,47 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
-
-class Usuario {
-  final String id;
+﻿class Usuario {
+  final String uid;
   final String nome;
   final String email;
-  final String tipoUsuario; // 'estofaria', 'fornecedor', 'cliente', 'admin'
-  final DateTime dataCriacao;
+  final String pessoaTipo; // 'pf' ou 'pj'
+  final String papel; // 'cliente', 'estofaria' ou 'fornecedor'
+  final String? cpf;
+  final String? cnpj;
+  final DateTime createdAt;
 
   Usuario({
-    required this.id,
+    required this.uid,
     required this.nome,
     required this.email,
-    required this.tipoUsuario,
-    required this.dataCriacao,
+    required this.pessoaTipo,
+    required this.papel,
+    this.cpf,
+    this.cnpj,
+    required this.createdAt,
   });
 
-  // Converter para Map (para Firestore)
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      'uid': uid,
       'nome': nome,
       'email': email,
-      'tipoUsuario': tipoUsuario,
-      'dataCriacao': Timestamp.fromDate(dataCriacao),
+      'pessoaTipo': pessoaTipo,
+      'papel': papel,
+      'cpf': cpf,
+      'cnpj': cnpj,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  // Criar a partir de Map (do Firestore)
   factory Usuario.fromMap(Map<String, dynamic> map) {
     return Usuario(
-      id: map['id'] ?? '',
+      uid: map['uid'] ?? '',
       nome: map['nome'] ?? '',
       email: map['email'] ?? '',
-      tipoUsuario: map['tipoUsuario'] ?? 'cliente',
-      dataCriacao: (map['dataCriacao'] as Timestamp).toDate(),
+      pessoaTipo: map['pessoaTipo'] ?? 'pf',
+      papel: map['papel'] ?? 'cliente',
+      cpf: map['cpf'],
+      cnpj: map['cnpj'],
+      createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
     );
-  }
-
-  // Método para redirecionar para o dashboard correto
-  String getDashboardRoute() {
-    switch (tipoUsuario) {
-      case 'estofaria':
-        return '/dashboard-estofaria';
-      case 'fornecedor':
-        return '/dashboard-fornecedor';
-      case 'cliente':
-        return '/dashboard-cliente';
-      case 'admin':
-        return '/dashboard-admin';
-      default:
-        return '/login';
-    }
   }
 }
