@@ -131,6 +131,25 @@ Erro atual: `Insufficient memory for Java Runtime Environment`
 
 \*\*Regras\*\*: Security rules deployadas
 
+# EstofariaPro
+
+## Versão
+v1.0.0 - Build atualizado e ajustes Android/Flutter
+
+## Descrição
+Sistema de gestão para estofarias, com integração Flutter + Firebase. Funciona em Android e Windows (debug).
+
+## Mudanças nesta versão
+- Atualização de build Android/Flutter
+- Ajustes em build.gradle.kts
+- Configuração Firebase ajustada
+- Criação do CHANGELOG.md
+
+## Instalação
+1. Clonar repositório
+2. Executar `flutter pub get`
+3. Build Android: `flutter build apk`
+4. Testar no Windows: `flutter run -d windows`
 
 
 
