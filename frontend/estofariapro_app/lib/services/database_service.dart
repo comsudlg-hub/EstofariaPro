@@ -4,17 +4,18 @@ import '../models/usuario_model.dart';
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Cria ou atualiza o perfil do usuário
-  Future<void> createUserProfile(Usuario usuario) async {
-    await _firestore.collection('usuarios').doc(usuario.uid).set(usuario.toMap());
+  // Cria usuário no Firestore
+  Future<void> criarUsuario(Usuario usuario) async {
+    await _firestore.collection('usuarios').doc(usuario.id).set(usuario.toMap());
   }
 
-  // Busca o perfil do usuário pelo UID
-  Future<Usuario?> getUserProfile(String uid) async {
+  // Recupera dados de um usuário pelo UID
+  Future<Usuario> getUsuario(String uid) async {
     final doc = await _firestore.collection('usuarios').doc(uid).get();
-    if (doc.exists && doc.data() != null) {
+    if (doc.exists) {
       return Usuario.fromMap(doc.data()!);
+    } else {
+      throw Exception('Usuário não encontrado');
     }
-    return null;
   }
 }

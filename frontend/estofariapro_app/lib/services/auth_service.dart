@@ -1,68 +1,74 @@
 ﻿import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/usuario_model.dart';
+import 'database_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final DatabaseService _dbService = DatabaseService();
 
-  // Converter Firebase User para nosso User Model
+  // Converte Firebase User em Usuario
   Usuario? _userFromFirebaseUser(User? user) {
-    return user != null ? Usuario(
+    if (user == null) return null;
+    return Usuario(
       id: user.uid,
       nome: user.displayName ?? 'Usuário',
       email: user.email ?? '',
-      tipoUsuario: 'cliente', // Default - será atualizado no Firestore
+      pessoaTipo: 'PF',
+      papel: 'cliente',
+      cpfCnpj: '',
       dataCriacao: DateTime.now(),
-    ) : null;
+    );
   }
 
-  // Stream de mudanças de autenticação
-  Stream<Usuario?> get user {
-    return _auth.authStateChanges().asyncMap(_userFromFirebaseUser);
-  }
+  // Stream de autenticação
+  Stream<Usuario?> get user => _auth.authStateChanges().asyncMap(_userFromFirebaseUser);
 
-  // Login com email e senha
+  // Login
   Future<Usuario?> login(String email, String senha) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: senha,
-      );
-      
+      UserCredential result = await _auth.signInWithEmailAndPassword(email: email, password: senha);
       User? user = result.user;
-      return _userFromFirebaseUser(user);
+      if (user == null) return null;
+
+      // Busca papel e dados no Firestore
+      final usuario = await _dbService.getUsuario(user.uid);
+      return usuario;
     } catch (e) {
       print('Erro no login: $e');
       rethrow;
     }
   }
 
-  // Cadastro com email e senha
-  Future<Usuario> cadastro(String nome, String email, String senha, String tipoUsuario) async {
+  // Cadastro PF ou PJ
+  Future<Usuario> cadastro({
+    required String nome,
+    required String email,
+    required String senha,
+    required String pessoaTipo, // PF ou PJ
+    required String papel, // cliente, estofaria, fornecedor
+    required String cpfCnpj,
+  }) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
+      UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: senha);
+      User? user = result.user;
+      if (user == null) throw Exception('Erro ao criar usuário no Firebase Auth');
+
+      await user.updateDisplayName(nome);
+
+      final usuario = Usuario(
+        id: user.uid,
+        nome: nome,
         email: email,
-        password: senha,
+        pessoaTipo: pessoaTipo,
+        papel: papel,
+        cpfCnpj: cpfCnpj,
+        dataCriacao: DateTime.now(),
       );
 
-      User? user = result.user;
-      
-      // Salvar informações adicionais no Firestore
-      if (user != null) {
-        await _firestore.collection('usuarios').doc(user.uid).set({
-          'nome': nome,
-          'email': email,
-          'tipoUsuario': tipoUsuario,
-          'dataCriacao': DateTime.now(),
-        });
+      await _dbService.criarUsuario(usuario);
 
-        // Atualizar display name
-        await user.updateDisplayName(nome);
-      }
-
-      return _userFromFirebaseUser(user)!;
+      return usuario;
     } catch (e) {
       print('Erro no cadastro: $e');
       rethrow;
@@ -70,44 +76,14 @@ class AuthService {
   }
 
   // Logout
-  Future<void> logout() async {
-    try {
-      await _auth.signOut();
-    } catch (e) {
-      print('Erro no logout: $e');
-      rethrow;
-    }
-  }
+  Future<void> logout() async => await _auth.signOut();
 
   // Recuperar senha
-  Future<void> recuperarSenha(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-    } catch (e) {
-      print('Erro ao recuperar senha: $e');
-      rethrow;
-    }
-  }
+  Future<void> recuperarSenha(String email) async => await _auth.sendPasswordResetEmail(email: email);
 
-  // Redirecionar para dashboard baseado no tipo de usuário
+  // Redirecionamento para dashboard
   static void redirectToDashboard(BuildContext context, Usuario usuario) {
-    final route = usuario.getDashboardRoute();
-    Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
-  }
-
-  // Get user data from Firestore
-  Future<Usuario> getUserData(String uid) async {
-    try {
-      DocumentSnapshot doc = await _firestore.collection('usuarios').doc(uid).get();
-      
-      if (doc.exists) {
-        return Usuario.fromMap(doc.data() as Map<String, dynamic>);
-      } else {
-        throw Exception('Usuário não encontrado no Firestore');
-      }
-    } catch (e) {
-      print('Erro ao buscar dados do usuário: $e');
-      rethrow;
-    }
+    final rota = usuario.getDashboardRoute();
+    Navigator.pushNamedAndRemoveUntil(context, rota, (route) => false);
   }
 }
