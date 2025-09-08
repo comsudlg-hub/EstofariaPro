@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CLIENT_ID</key>
+    <string>945698899262-c1e22sq2bu0f3ff81lbcoijpit0gb7cn.apps.googleusercontent.com</string>
+    <key>REVERSED_CLIENT_ID</key>
+    <string>com.googleusercontent.apps.945698899262-c1e22sq2bu0f3ff81lbcoijpit0gb7cn</string>
+    <key>API_KEY</key>
+    <string>AIzaSyAlP3k_b-mocIzsJIfsvx1Mmj34uqSdhCI</string>
+    <key>GCM_SENDER_ID</key>
+    <string>945698899262</string>
+    <key>PLIST_VERSION</key>
+    <string>1</string>
+    <key>BUNDLE_ID</key>
+    <string>com.example.estofariaproApp</string>
+    <key>PROJECT_ID</key>
+    <string>estofariapro</string>
+    <key>STORAGE_BUCKET</key>
+    <string>estofariapro.firebasestorage.app</string>
+    <key>IS_ADS_ENABLED</key>
+    <false/>
+    <key>IS_ANALYTICS_ENABLED</key>
+    <false/>
+    <key>IS_APPINVITE_ENABLED</key>
+    <true/>
+    <key>IS_GCM_ENABLED</key>
+    <true/>
+    <key>IS_SIGNIN_ENABLED</key>
+    <true/>
+    <key>GOOGLE_APP_ID</key>
+    <string>1:945698899262:ios:5cd3c326d76e6d169b586f</string>
+</dict>
+</plist>
