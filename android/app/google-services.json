@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "945698899262",
+    "project_id": "estofariapro",
+    "storage_bucket": "estofariapro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945698899262:android:c1cd7b86e2807a8e9b586f",
+        "android_client_info": {
+          "package_name": "com.compersonalite.estofariapro"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "945698899262-e86hcmqrje17ovqstod8plupcbcgaem0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJncfY83tmHerhBWVPDKAZia1538ycAy8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945698899262-e86hcmqrje17ovqstod8plupcbcgaem0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "945698899262-c1e22sq2bu0f3ff81lbcoijpit0gb7cn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.estofariaproApp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945698899262:android:428eb4ccc25635649b586f",
+        "android_client_info": {
+          "package_name": "com.example.estofariapro_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "945698899262-e86hcmqrje17ovqstod8plupcbcgaem0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJncfY83tmHerhBWVPDKAZia1538ycAy8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945698899262-e86hcmqrje17ovqstod8plupcbcgaem0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "945698899262-c1e22sq2bu0f3ff81lbcoijpit0gb7cn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.estofariaproApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
