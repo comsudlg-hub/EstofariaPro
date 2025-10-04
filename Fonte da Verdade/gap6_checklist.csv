@@ -1,0 +1,10 @@
+fase,tarefa,descricao,prioridade,status
+Fase1,Implementar formaContrato,Adicionar campo formaContrato no fluxo de aprovação do orçamento,alta,pending
+Fase1,Notificar estofaria,Notificar estofaria quando formaContrato == garantia,alta,pending
+Fase1,Ajustar ordens_servico,Adicionar valorGarantia, assinaturaConfirmacaoGarantia e recalculo do valorFinal,alta,pending
+Fase1,Checkbox assinatura,Exigir checkbox 'Confirmo que desejo contratar Garantia PRO (R$150)' antes de salvar assinatura,alta,pending
+Fase1,Webhook pagamentos,Implementar paymentWebhookHandler para atualizar pagamentos e criar repasses,alta,pending
+Fase1,Repasses,Implementar criação de repasses/{repasseId} quando pagamento via garantia,alta,pending
+Fase1,Admin cancelar garantia,Painel admin com botão 'Cancelar Garantia' e CF adminCancelGuarantee,alta,pending
+Fase1,Auditoria,CF auditOnWrite para registrar eventos críticos,alta,pending
+Fase1,Tests E2E,Testar fluxo completo no emulator (assinatura -> pagamento -> repasse),alta,pending

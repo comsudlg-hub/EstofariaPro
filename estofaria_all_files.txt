@@ -1,0 +1,1936 @@
+===============================================
+>>> .\lib\presentation\screens\dashboard\estofaria_dashboard.dart
+===============================================
+// lib/presentation/screens/dashboard/estofaria_dashboard.dart
+// Painel principal da Estofaria — segue o tema definido em theme.dart
+// Submenus preenchidos conforme "Mapa da Mina Consolidado".
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+// Import do AppBar reutilizável
+import '../../common_widgets/shared_app_bar.dart';
+// Import do CustomButton atualizado
+import '../../common_widgets/custom_button.dart';
+// Import do PedidoOrcamentoForm modularizado
+import '../../common_widgets/pedido_orcamento_form.dart';
+
+// NOVO: AuthProvider e helper
+import '../../../data/services/pedido_orcamento_helpers.dart';
+import '../../../state/auth_provider.dart';
+import 'package:provider/provider.dart';
+
+class EstofariaDashboard extends StatefulWidget {
+  const EstofariaDashboard({Key? key}) : super(key: key);
+
+  @override
+  State<EstofariaDashboard> createState() => _EstofariaDashboardState();
+}
+
+class _EstofariaDashboardState extends State<EstofariaDashboard> {
+  final List<Map<String, dynamic>> _modules = [
+    {'id': 'Vendas', 'label': 'Vendas', 'icon': Icons.point_of_sale},
+    {'id': 'Produção', 'label': 'Produção', 'icon': Icons.factory},
+    {'id': 'Logística', 'label': 'Logística', 'icon': Icons.local_shipping},
+    {'id': 'Gestão', 'label': 'Gestão', 'icon': Icons.manage_accounts},
+  ];
+
+  // SUBMENUS preenchidos conforme Mapa da Mina Consolidado
+  final Map<String, List<Map<String, dynamic>>> _submenuMap = {
+    'Vendas': [
+      {
+        'id': 'pedido_orcamento',
+        'label': 'Pedido de Orçamento',
+        'route': '/estofaria-dashboard/pedido-orcamento',
+        'icon': Icons.description_outlined,
+      },
+      {
+        'id': 'enviar_orcamento',
+        'label': 'Enviar Orçamento',
+        'route': '/estofaria-dashboard/enviar-orcamento',
+        'icon': Icons.send_outlined,
+      },
+      {
+        'id': 'agendar_visita',
+        'label': 'Agendar Visita',
+        'route': '/estofaria-dashboard/agendar-visita',
+        'icon': Icons.event_available_outlined,
+      },
+      {
+        'id': 'ordem_servico',
+        'label': 'Ordem de Serviço (OS)',
+        'route': '/estofaria-dashboard/ordem-servico',
+        'icon': Icons.assignment_turned_in_outlined,
+      },
+    ],
+    'Logística': [
+      {
+        'id': 'entregas',
+        'label': 'Entregas',
+        'route': '/estofaria-dashboard/entregas',
+        'icon': Icons.local_shipping_outlined,
+      },
+      {
+        'id': 'atribuicao_entregadores',
+        'label': 'Atribuição de Entregadores',
+        'route': '/estofaria-dashboard/atribuicao-entregadores',
+        'icon': Icons.person_add_alt_1_outlined,
+      },
+      {
+        'id': 'status_entrega',
+        'label': 'Status de Entrega',
+        'route': '/estofaria-dashboard/status-entrega',
+        'icon': Icons.track_changes_outlined,
+      },
+      {
+        'id': 'upload_comprovantes',
+        'label': 'Upload de Comprovantes',
+        'route': '/estofaria-dashboard/upload-comprovantes',
+        'icon': Icons.upload_file,
+      },
+    ],
+    'Produção': [
+      {
+        'id': 'ordens_producao',
+        'label': 'Ordens de Produção',
+        'route': '/estofaria-dashboard/ordens-producao',
+        'icon': Icons.build_outlined,
+      },
+      {
+        'id': 'progresso_producao',
+        'label': 'Progresso (%)',
+        'route': '/estofaria-dashboard/progresso-producao',
+        'icon': Icons.show_chart_outlined,
+      },
+      {
+        'id': 'conclusao_producao',
+        'label': 'Conclusão (libera logística)',
+        'route': '/estofaria-dashboard/conclusao-producao',
+        'icon': Icons.check_circle_outline,
+      },
+    ],
+    'Gestão': [
+      {
+        'id': 'funcionarios',
+        'label': 'Funcionários',
+        'route': '/estofaria-dashboard/funcionarios',
+        'icon': Icons.people_outline,
+      },
+      {
+        'id': 'relatorios',
+        'label': 'Relatórios',
+        'route': '/estofaria-dashboard/relatorios',
+        'icon': Icons.bar_chart_outlined,
+      },
+      {
+        'id': 'compras',
+        'label': 'Compras de Materiais/Tecidos',
+        'route': '/estofaria-dashboard/compras',
+        'icon': Icons.shopping_cart_outlined,
+      },
+    ],
+  };
+
+  String _selectedModule = 'Vendas';
+  String? _selectedSubmenuId;
+
+  // NOVO: guardar o pedidoId gerado
+  String? _pedidoIdAtual;
+
+  @override
+  void initState() {
+    super.initState();
+    // não ativamos o submenu automaticamente
+    _selectedSubmenuId = null;
+  }
+
+  void _selectModule(String module) {
+    setState(() {
+      _selectedModule = module;
+      _selectedSubmenuId = null; // só ativa quando usuário clicar
+    });
+  }
+
+  Future<void> _selectSubmenu(
+      String id, String? route, BuildContext context) async {
+    if (id == 'pedido_orcamento') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Iniciar Pedido de Orçamento'),
+          content: const Text(
+              'Deseja realmente iniciar um novo Pedido de Orçamento?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      // 🔑 gera o pedidoId no Firebase
+      final auth = context.read<AuthProvider>();
+      final estofariaId = auth.currentUser?.uid;
+      if (estofariaId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: usuário não identificado.')),
+        );
+        return;
+      }
+
+      final pedidoId = await PedidoOrcamentoHelper.criarPedidoOrcamento(
+        estofariaId: estofariaId,
+      );
+
+      setState(() {
+        _pedidoIdAtual = pedidoId;
+        _selectedSubmenuId = id;
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedSubmenuId = id;
+    });
+
+    if (route != null) {
+      context.go(route);
+    }
+  }
+
+  /// Menu horizontal principal (módulos)
+  Widget _buildTopMenu(BuildContext context) {
+    return Center(
+      child: Wrap(
+        spacing: 12,
+        children: _modules.map((m) {
+          final selected = m['id'] == _selectedModule;
+          return CustomButton(
+            label: m['label'],
+            icon: m['icon'],
+            isSelected: selected,
+            onPressed: () => _selectModule(m['id']),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Submenu lateral dentro de Card (padronizado)
+  Widget _buildSubmenu(BuildContext context, {bool isDrawer = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final items = _submenuMap[_selectedModule] ?? [];
+
+    return Card(
+      margin: const EdgeInsets.all(12),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: colorScheme.primary, width: 1),
+      ),
+      child: Column(
+        children: [
+          // Cabeçalho do módulo
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _modules
+                          .firstWhere((m) => m['id'] == _selectedModule)['icon']
+                      as IconData,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _selectedModule,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: items.map((it) {
+                final isSel = it['id'] == _selectedSubmenuId;
+                return InkWell(
+                  onTap: () {
+                    _selectSubmenu(it['id']!, it['route'], context);
+                    if (isDrawer) Navigator.of(context).pop();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isSel
+                          ? colorScheme.primaryContainer
+                          : Colors.transparent,
+                      border: Border(
+                        left: BorderSide(
+                          color:
+                              isSel ? colorScheme.primary : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          it['icon'] as IconData? ?? Icons.circle_outlined,
+                          color: isSel
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            it['label'] ?? '',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: isSel
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurface,
+                                  fontWeight: isSel
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                          ),
+                        ),
+                        if (isSel)
+                          Icon(Icons.check_circle_outline,
+                              color: colorScheme.primary),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Área de conteúdo central
+  Widget _buildContentArea(BuildContext context) {
+    if (_selectedSubmenuId == null) {
+      return Center(
+        child: Text(
+          'Nenhuma ação selecionada.\nSelecione um item no submenu lateral.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onBackground,
+              ),
+        ),
+      );
+    }
+
+    switch (_selectedSubmenuId) {
+      case 'pedido_orcamento':
+        return PedidoOrcamentoForm(
+          pedidoId: _pedidoIdAtual ?? '',
+        );
+      case 'enviar_orcamento':
+        return _placeholderPage(
+          context,
+          title: 'Enviar Orçamento',
+          description:
+              'Formulário: valor, prazo, condições. Gera PDF em orcamentos/{id}.',
+        );
+      case 'agendar_visita':
+        return _placeholderPage(
+          context,
+          title: 'Agendar Visita',
+          description:
+              'Campos: data,hora,funcionário,endereço. Integração Google Calendar se conectado.',
+        );
+      case 'ordem_servico':
+        return _placeholderPage(
+          context,
+          title: 'Ordem de Serviço (OS)',
+          description:
+              'Criada quando orçamento aprovado. Firestore: ordens_servico/{id}.',
+        );
+      default:
+        return _placeholderPage(
+          context,
+          title: 'Em construção',
+          description: 'Tela $_selectedSubmenuId ainda não implementada.',
+        );
+    }
+  }
+
+  Widget _placeholderPage(BuildContext context,
+      {required String title, required String description}) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(description,
+                  style: Theme.of(context).textTheme.bodyMedium),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Rodapé
+  Widget _buildFooter(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      color: colorScheme.surface,
+      child: Row(
+        children: [
+          Text(
+            '© 2025 Estofaria PRO — Todos os direitos reservados',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: colorScheme.onSurface),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.secondary,
+              foregroundColor: colorScheme.onSecondary,
+            ),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Abrir chat de suporte')),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Suporte'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isWide = MediaQuery.of(context).size.width >= 900;
+
+    return Scaffold(
+      appBar: SharedAppBar(
+        estofariaNome: 'Estofaria Silva',
+        usuarioNome: 'João da Silva',
+        onLogout: () => context.go('/login'),
+        onProfileTap: () => context.go('/profile'),
+      ),
+      drawer:
+          isWide ? null : Drawer(child: _buildSubmenu(context, isDrawer: true)),
+      body: Column(
+        children: [
+          const SizedBox(height: 8),
+          _buildTopMenu(context),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              children: [
+                if (isWide) SizedBox(width: 300, child: _buildSubmenu(context)),
+                Expanded(child: _buildContentArea(context)),
+              ],
+            ),
+          ),
+          _buildFooter(context),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\pedido_orcamento_form.dart
+===============================================
+import 'package:flutter/material.dart';
+import 'custom_button.dart';
+import 'custom_text_field.dart';
+import '../common_widgets/fase2_servico_step.dart';
+import '../common_widgets/fase3_fotos_step.dart';
+import '../common_widgets/fase4_resumo_step.dart'; // 🔹 adicionar import do resumo
+
+// importa o helper para salvar no Firestore
+import '../../data/services/pedido_orcamento_helpers.dart';
+
+class PedidoOrcamentoForm extends StatefulWidget {
+  final String pedidoId; // ID exibido para o usuário
+  final String docId;    // ID real do Firestore (UUID)
+
+  const PedidoOrcamentoForm({
+    Key? key,
+    required this.pedidoId,
+    required this.docId,
+  }) : super(key: key);
+
+  @override
+  State<PedidoOrcamentoForm> createState() => _PedidoOrcamentoFormState();
+}
+
+class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
+  int _currentStep = 0;
+
+  // Controllers para os campos da Fase 1
+  final _nomeController = TextEditingController();
+  final _cpfController = TextEditingController();
+  final _telefoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _cepController = TextEditingController();
+  final _ruaController = TextEditingController();
+  final _numeroController = TextEditingController();
+  final _bairroController = TextEditingController();
+  final _cidadeController = TextEditingController();
+  final _estadoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _cpfController.dispose();
+    _telefoneController.dispose();
+    _emailController.dispose();
+    _cepController.dispose();
+    _ruaController.dispose();
+    _numeroController.dispose();
+    _bairroController.dispose();
+    _cidadeController.dispose();
+    _estadoController.dispose();
+    super.dispose();
+  }
+
+  final List<Map<String, dynamic>> _steps = [
+    {
+      'label': 'Dados',
+      'icon': Icons.person_outline,
+      'message': 'Insira seus dados pessoais abaixo para começarmos.',
+    },
+    {
+      'label': 'Serviços',
+      'icon': Icons.home_repair_service_outlined,
+      'message': 'Selecione os serviços e estofados que precisam de atenção.',
+    },
+    {
+      'label': 'Fotos',
+      'icon': Icons.photo_camera_outlined,
+      'message': 'Envie até 5 fotos para ajudar na avaliação do serviço.',
+    },
+    {
+      'label': 'Resumo',
+      'icon': Icons.assignment_turned_in_outlined,
+      'message':
+          'Confira se todas as informações estão corretas antes de confirmar.',
+    },
+  ];
+
+  Future<void> _nextStep() async {
+    // 🔹 Salva no Firestore antes de avançar
+    if (_currentStep == 0) {
+      await PedidoOrcamentoHelper.salvarStep1(
+        docId: widget.docId,
+        dadosCliente: {
+          'nome': _nomeController.text,
+          'cpf': _cpfController.text,
+          'telefone': _telefoneController.text,
+          'email': _emailController.text,
+          'endereco': {
+            'cep': _cepController.text,
+            'rua': _ruaController.text,
+            'numero': _numeroController.text,
+            'bairro': _bairroController.text,
+            'cidade': _cidadeController.text,
+            'uf': _estadoController.text,
+          },
+        },
+      );
+    }
+    // Step 2 e 3 vão salvar nos próprios widgets (Fase2ServicoStep e Fase3FotosStep)
+
+    if (_currentStep < _steps.length - 1) {
+      setState(() => _currentStep++);
+    }
+  }
+
+  void _prevStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 900;
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Card(
+              elevation: 3,
+              margin: const EdgeInsets.all(24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: scheme.primary, width: 1),
+              ),
+              child: Row(
+                children: [
+                  // Submenu lateral numerado
+                  Container(
+                    width: 200,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceVariant,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(12),
+                      ),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _steps.length,
+                      itemBuilder: (context, index) {
+                        final isActive = _currentStep == index;
+                        return InkWell(
+                          onTap: () => setState(() => _currentStep = index),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? scheme.primaryContainer
+                                  : Colors.transparent,
+                              border: Border(
+                                left: BorderSide(
+                                  color: isActive
+                                      ? scheme.primary
+                                      : Colors.transparent,
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: isActive
+                                      ? scheme.primary
+                                      : scheme.outlineVariant,
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: textTheme.labelMedium?.copyWith(
+                                      color: isActive
+                                          ? scheme.onPrimary
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _steps[index]['label'],
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      fontWeight: isActive
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isActive
+                                          ? scheme.primary
+                                          : scheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Área de conteúdo
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ID do pedido logo no topo
+                          Text(
+                            "ID do Pedido: ${widget.pedidoId}",
+                            style: textTheme.titleSmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Cabeçalho amigável
+                          Row(
+                            children: [
+                              Icon(
+                                _steps[_currentStep]['icon'],
+                                color: scheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _steps[_currentStep]['message'],
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color: scheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Conteúdo da etapa
+                          Expanded(
+                            child: _buildStepContent(context, _currentStep),
+                          ),
+
+                          // Botões de navegação
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              if (_currentStep > 0)
+                                CustomButton(
+                                  label: 'Voltar',
+                                  onPressed: _prevStep,
+                                  type: ButtonType.outlined,
+                                ),
+                              if (_currentStep < _steps.length - 1)
+                                CustomButton(
+                                  label: 'Continuar',
+                                  onPressed: _nextStep,
+                                  type: ButtonType.primary,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Conteúdo por etapa
+  Widget _buildStepContent(BuildContext context, int step) {
+    switch (step) {
+      case 0:
+        return ListView(
+          children: [
+            CustomTextField(controller: _nomeController, label: 'Nome'),
+            const SizedBox(height: 12),
+            CustomTextField(controller: _cpfController, label: 'CPF'),
+            const SizedBox(height: 12),
+            CustomTextField(controller: _telefoneController, label: 'Telefone'),
+            const SizedBox(height: 12),
+            CustomTextField(controller: _emailController, label: 'E-mail'),
+            const SizedBox(height: 12),
+
+            // CEP + botão consulta
+            Row(
+              children: [
+                Expanded(
+                  child: CustomTextField(
+                    controller: _cepController,
+                    label: 'CEP',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CustomButton(
+                  label: "Consultar",
+                  type: ButtonType.outlined,
+                  onPressed: () {
+                    // TODO: integrar consulta CEP
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Rua + Número
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: CustomTextField(controller: _ruaController, label: 'Rua'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 1,
+                  child: CustomTextField(
+                      controller: _numeroController, label: 'Número'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Bairro + Cidade + Estado
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child:
+                      CustomTextField(controller: _bairroController, label: 'Bairro'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child:
+                      CustomTextField(controller: _cidadeController, label: 'Cidade'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 1,
+                  child:
+                      CustomTextField(controller: _estadoController, label: 'UF'),
+                ),
+              ],
+            ),
+          ],
+        );
+      case 1:
+        return Fase2ServicoStep(docId: widget.docId); // Step 2
+      case 2:
+        return Fase3FotosStep(docId: widget.docId);   // Step 3
+      case 3:
+        return Fase4ResumoStep( // 🔹 ajuste necessário
+          docId: widget.docId,
+          pedidoId: widget.pedidoId,
+          onEditar: _prevStep,
+        );
+      default:
+        return const SizedBox();
+    }
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\fase1_cliente_step.dart
+===============================================
+import 'package:flutter/material.dart';
+import '../../../core/utils/validators.dart';
+import '../common_widgets/custom_text_field.dart';
+
+class Fase1ClienteStep extends StatefulWidget {
+  final Map<String, dynamic> dadosCliente;
+  final VoidCallback onStepComplete;
+
+  const Fase1ClienteStep({
+    Key? key,
+    required this.dadosCliente,
+    required this.onStepComplete,
+  }) : super(key: key);
+
+  @override
+  State<Fase1ClienteStep> createState() => _Fase1ClienteStepState();
+}
+
+class _Fase1ClienteStepState extends State<Fase1ClienteStep> {
+  final _formKey = GlobalKey<FormState>();
+
+  void _salvar() {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+      widget.onStepComplete();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          CustomTextField(
+            label: "Nome",
+            onSaved: (val) => widget.dadosCliente["nome"] = val,
+            validator: Validators.requiredField,
+          ),
+          CustomTextField(
+            label: "CPF",
+            onSaved: (val) => widget.dadosCliente["cpf"] = val,
+            validator: Validators.cpf,
+          ),
+          CustomTextField(
+            label: "Telefone",
+            onSaved: (val) => widget.dadosCliente["telefone"] = val,
+            validator: Validators.telefone,
+          ),
+          ElevatedButton(
+            onPressed: _salvar,
+            child: const Text("Avan�ar"),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\fase2_servico_step.dart
+===============================================
+import 'package:flutter/material.dart';
+import 'custom_text_field.dart';
+import '../../data/services/pedido_orcamento_helpers.dart';
+
+class Fase2ServicoStep extends StatefulWidget {
+  final String docId; // ID do documento no Firestore
+
+  const Fase2ServicoStep({super.key, required this.docId});
+
+  @override
+  State<Fase2ServicoStep> createState() => _Fase2ServicoStepState();
+}
+
+class _Fase2ServicoStepState extends State<Fase2ServicoStep> {
+  final Map<String, bool> _servicos = {
+    'Fabrica��o sob medida': false,
+    'Reforma/Reparo': false,
+    'Higieniza��o e limpeza': false,
+    'Impermeabiliza��o': false,
+    'Outros': false,
+  };
+
+  final TextEditingController _outroServicoController = TextEditingController();
+
+  final Map<String, bool> _estofadosSelecionados = {
+    'Sof�': false,
+    'Poltrona': false,
+    'Cadeira': false,
+    'Colch�o': false,
+    'Cabeceira': false,
+    'Banco automotivo': false,
+    'Outros': false,
+  };
+
+  final Map<String, TextEditingController> _quantidadeEstofados = {
+    'Sof�': TextEditingController(),
+    'Poltrona': TextEditingController(),
+    'Cadeira': TextEditingController(),
+    'Colch�o': TextEditingController(),
+    'Cabeceira': TextEditingController(),
+    'Banco automotivo': TextEditingController(),
+    'Outros': TextEditingController(),
+  };
+
+  final TextEditingController _observacoesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _outroServicoController.dispose();
+    for (final c in _quantidadeEstofados.values) {
+      c.dispose();
+    }
+    _observacoesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> salvarDados() async {
+    final servicosSelecionados = _servicos.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final estofados = <String, int>{};
+    for (final entry in _estofadosSelecionados.entries) {
+      if (entry.value) {
+        final qtdText = _quantidadeEstofados[entry.key]?.text.trim() ?? "0";
+        final qtd = int.tryParse(qtdText) ?? 0;
+        estofados[entry.key] = qtd;
+      }
+    }
+
+    final detalhes = [
+      if (_outroServicoController.text.isNotEmpty)
+        "Outro servi�o: ${_outroServicoController.text}",
+      if (_observacoesController.text.isNotEmpty)
+        "Observa��es: ${_observacoesController.text}",
+    ].join("\n");
+
+    await PedidoOrcamentoHelper.salvarStep2(
+      docId: widget.docId,
+      servicos: servicosSelecionados,
+      estofados: estofados,
+      detalhes: detalhes.isNotEmpty ? detalhes : null,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: ListView(
+        children: [
+          // Servi�os - agora com Chips
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ExpansionTile(
+              leading: Icon(Icons.build_circle_outlined, color: scheme.primary),
+              title: Text(
+                "Escolha os servi�os",
+                style:
+                    textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text("Pode selecionar mais de um."),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _servicos.keys.map((servico) {
+                      return FilterChip(
+                        label: Text(servico),
+                        selected: _servicos[servico] ?? false,
+                        onSelected: (val) {
+                          setState(() => _servicos[servico] = val);
+                          salvarDados();
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+                if (_servicos['Outros'] == true)
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: CustomTextField(
+                      controller: _outroServicoController,
+                      label: "Descreva o outro servi�o",
+                      onChanged: (_) => salvarDados(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Estofados - check + quantidade inline
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ExpansionTile(
+              leading: Icon(Icons.chair_alt_outlined, color: scheme.primary),
+              title: Text(
+                "Escolha os estofados",
+                style:
+                    textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              subtitle:
+                  const Text("Selecione os m�veis e informe a quantidade."),
+              children: _estofadosSelecionados.keys.map((estofado) {
+                final selecionado = _estofadosSelecionados[estofado] ?? false;
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CheckboxListTile(
+                          value: selecionado,
+                          title: Text(estofado),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged: (val) {
+                            setState(() =>
+                                _estofadosSelecionados[estofado] = val ?? false);
+                            salvarDados();
+                          },
+                        ),
+                      ),
+                      if (selecionado)
+                        SizedBox(
+                          width: 90,
+                          child: CustomTextField(
+                            controller: _quantidadeEstofados[estofado]!,
+                            label: "Qtd",
+                            onChanged: (_) => salvarDados(),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Observa��es
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ExpansionTile(
+              leading: Icon(Icons.notes_outlined, color: scheme.primary),
+              title: Text(
+                "Observa��es",
+                style:
+                    textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text("Nos conte algo importante."),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: CustomTextField(
+                    controller: _observacoesController,
+                    label: "Digite suas observa��es aqui",
+                    onChanged: (_) => salvarDados(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\fase3_fotos_step.dart
+===============================================
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import '../../data/services/pedido_orcamento_helpers.dart';
+import 'dart:io' show File;
+
+class Fase3FotosStep extends StatefulWidget {
+  final String docId; // ID do documento Firestore
+
+  const Fase3FotosStep({super.key, required this.docId});
+
+  @override
+  State<Fase3FotosStep> createState() => _Fase3FotosStepState();
+}
+
+class _Fase3FotosStepState extends State<Fase3FotosStep> {
+  final List<ImageProvider> _fotos = [];
+  final List<String> _fotosUrls = []; // URLs salvas no Firestore
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  bool _isUploading = false;
+  double _uploadProgress = 0.0;
+
+  // Limite de fotos
+  static const int maxFotos = 5;
+
+  /// Abre seletor multi-plataforma (mobile: ImagePicker, web: FilePicker)
+  Future<void> _adicionarFoto() async {
+    if (_fotos.length >= maxFotos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Você atingiu o máximo de 5 fotos.")),
+      );
+      return;
+    }
+
+    try {
+      String? downloadUrl;
+
+      if (kIsWeb) {
+        // 📌 Para WEB, usa FilePicker
+        FilePickerResult? result =
+            await FilePicker.platform.pickFiles(type: FileType.image);
+        if (result != null && result.files.isNotEmpty) {
+          Uint8List? fileBytes = result.files.first.bytes;
+          String fileName = "${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+          setState(() {
+            _isUploading = true;
+          });
+
+          final ref = _storage
+              .ref()
+              .child('pedidos_orcamento/${widget.docId}/$fileName');
+          final uploadTask = ref.putData(fileBytes!);
+
+          uploadTask.snapshotEvents.listen((event) {
+            setState(() {
+              _uploadProgress =
+                  event.bytesTransferred / event.totalBytes.toDouble();
+            });
+          });
+
+          await uploadTask;
+          downloadUrl = await ref.getDownloadURL();
+        }
+      } else {
+        // 📌 Para MOBILE, usa ImagePicker
+        final ImagePicker picker = ImagePicker();
+        final XFile? pickedFile =
+            await picker.pickImage(source: ImageSource.gallery);
+
+        if (pickedFile != null) {
+          File file = File(pickedFile.path);
+          String fileName = "${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+          setState(() {
+            _isUploading = true;
+          });
+
+          final ref = _storage
+              .ref()
+              .child('pedidos_orcamento/${widget.docId}/$fileName');
+          final uploadTask = ref.putFile(file);
+
+          uploadTask.snapshotEvents.listen((event) {
+            setState(() {
+              _uploadProgress =
+                  event.bytesTransferred / event.totalBytes.toDouble();
+            });
+          });
+
+          await uploadTask;
+          downloadUrl = await ref.getDownloadURL();
+        }
+      }
+
+      if (downloadUrl != null) {
+        setState(() {
+          _fotos.add(NetworkImage(downloadUrl));
+          _fotosUrls.add(downloadUrl);
+          _isUploading = false;
+          _uploadProgress = 0.0;
+        });
+
+        // Salva no Firestore
+        await _salvarFotos();
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao enviar foto: $e")),
+      );
+    }
+  }
+
+  Future<void> _removerFoto(int index) async {
+    try {
+      // Remove do Firebase Storage também
+      final url = _fotosUrls[index];
+      await _storage.refFromURL(url).delete();
+
+      setState(() {
+        _fotos.removeAt(index);
+        _fotosUrls.removeAt(index);
+      });
+
+      await _salvarFotos();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao remover foto: $e")),
+      );
+    }
+  }
+
+  Future<void> _salvarFotos() async {
+    await PedidoOrcamentoHelper.salvarStep3(
+      docId: widget.docId,
+      fotosUrls: _fotosUrls,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: ListView(
+        children: [
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              leading: Icon(Icons.camera_alt_outlined, color: scheme.primary),
+              title: Text(
+                "Envie suas fotos",
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text("Adicione até 5 fotos para ajudar na avaliação."),
+              children: [
+                if (_isUploading)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: LinearProgressIndicator(value: _uploadProgress),
+                  ),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (int i = 0; i < _fotos.length; i++)
+                      Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image(
+                              image: _fotos[i],
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: InkWell(
+                              onTap: () => _removerFoto(i),
+                              child: CircleAvatar(
+                                radius: 12,
+                                backgroundColor: scheme.error,
+                                child: Icon(Icons.close,
+                                    color: scheme.onError, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (_fotos.length < maxFotos)
+                      InkWell(
+                        onTap: _adicionarFoto,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: scheme.primary, width: 2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.add_a_photo,
+                              color: scheme.primary, size: 32),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_fotos.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      "Nenhuma foto adicionada ainda.",
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\fase4_resumo_step.dart
+===============================================
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../data/services/pedido_orcamento_helpers.dart';
+
+class Fase4ResumoStep extends StatelessWidget {
+  final String docId;
+  final String pedidoId;
+  final VoidCallback onEditar; // callback p/ voltar e editar
+
+  const Fase4ResumoStep({
+    super.key,
+    required this.docId,
+    required this.pedidoId,
+    required this.onEditar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('pedidos_orcamento')
+          .doc(docId)
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text("Erro: Pedido não encontrado."));
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+
+        final dadosCliente = data['dadosCliente'] ?? {};
+        final servicos = (data['servicos'] ?? []) as List;
+        final estofados = (data['estofados'] ?? []) as List;
+        final fotos = (data['fotos'] ?? []) as List;
+
+        return ListView(
+          children: [
+            // Cabeçalho com ID do pedido
+            Text(
+              "Resumo do Pedido",
+              style: textTheme.headlineSmall?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Número do Pedido: $pedidoId",
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "Confira se as informações abaixo estão corretas antes de confirmar o envio.",
+              style: textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+
+            // Dados do cliente
+            _buildSection(
+              context,
+              "Dados do Cliente",
+              [
+                "Nome: ${dadosCliente['nome'] ?? ''}",
+                "Telefone: ${dadosCliente['telefone'] ?? ''}",
+                "Email: ${dadosCliente['email'] ?? ''}",
+                "Endereço: ${dadosCliente['endereco']?['rua'] ?? ''}, "
+                    "${dadosCliente['endereco']?['numero'] ?? ''} - "
+                    "${dadosCliente['endereco']?['bairro'] ?? ''}, "
+                    "${dadosCliente['endereco']?['cidade'] ?? ''} - "
+                    "${dadosCliente['endereco']?['uf'] ?? ''}",
+              ],
+              scheme,
+              textTheme,
+            ),
+
+            // Serviços
+            _buildSection(
+              context,
+              "Serviços",
+              [
+                servicos.isNotEmpty
+                    ? "Selecionados: ${servicos.join(', ')}"
+                    : "Nenhum serviço informado.",
+                if (data['detalhes_servico'] != null &&
+                    data['detalhes_servico'].toString().isNotEmpty)
+                  "Detalhes: ${data['detalhes_servico']}",
+                if (data['observacoes'] != null &&
+                    data['observacoes'].toString().isNotEmpty)
+                  "Observações: ${data['observacoes']}",
+              ],
+              scheme,
+              textTheme,
+            ),
+
+            // Estofados
+            _buildSection(
+              context,
+              "Estofados",
+              estofados.isNotEmpty
+                  ? estofados
+                      .map((e) => "${e['tipo']} - ${e['quantidade']} un.")
+                      .toList()
+                  : ["Nenhum estofado informado."],
+              scheme,
+              textTheme,
+            ),
+
+            // Fotos
+            Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Fotos",
+                        style: textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    fotos.isNotEmpty
+                        ? Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: fotos.map<Widget>((url) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  url,
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              );
+                            }).toList(),
+                          )
+                        : Text("Nenhuma foto enviada.",
+                            style: textTheme.bodyMedium),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Botões de ação
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: onEditar,
+                  icon: const Icon(Icons.edit),
+                  label: const Text("Editar"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: scheme.secondary,
+                    foregroundColor: scheme.onSecondary,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // 🔹 ajuste necessário: garantir uso do parâmetro nomeado
+                    await PedidoOrcamentoHelper.finalizarPedido(docId: docId);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Pedido confirmado e enviado com sucesso!"),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text("Confirmar"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: scheme.primary,
+                    foregroundColor: scheme.onPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSection(BuildContext context, String title, List<String> items,
+      ColorScheme scheme, TextTheme textTheme) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ...items.map((i) => Text(i, style: textTheme.bodyMedium)).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\presentation\common_widgets\custom_text_field.dart
+===============================================
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+class CustomTextField extends StatelessWidget {
+  final TextEditingController? controller;
+  final String label;
+  final String? hintText;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final String? Function(String?)? validator;
+  final void Function(String?)? onSaved;
+  final void Function(String)? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLines;
+
+  const CustomTextField({
+    Key? key,
+    this.controller,
+    required this.label,
+    this.hintText,
+    this.obscureText = false,
+    this.keyboardType,
+    this.textInputAction,
+    this.validator,
+    this.onSaved,
+    this.onChanged,
+    this.inputFormatters,
+    this.maxLines = 1,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      validator: validator,
+      onSaved: onSaved,
+      onChanged: onChanged,
+      inputFormatters: inputFormatters,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
+}
+
+
+
+===============================================
+>>> .\lib\state\order_provider.dart
+===============================================
+import 'package:flutter/foundation.dart';
+import '../data/models/order_model.dart';
+import '../data/repositories/order_repository.dart';
+
+class OrderProvider extends ChangeNotifier {
+  final OrderRepository _repository = OrderRepository();
+  List<OrderModel> _orders = [];
+  bool _isLoading = false;
+
+  List<OrderModel> get orders => _orders;
+  bool get isLoading => _isLoading;
+
+  Future<void> fetchOrders() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _orders = await _repository.getAllOrders();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> addOrder(OrderModel order) async {
+    await _repository.saveOrder(order);
+    _orders.add(order);
+    notifyListeners();
+  }
+
+  Future<void> updateOrderStatus(String id, String status) async {
+    final idx = _orders.indexWhere((o) => o.id == id);
+    if (idx != -1) {
+      final updated = _orders[idx].copyWith(status: status);
+      await _repository.saveOrder(updated);
+      _orders[idx] = updated;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteOrder(String id) async {
+    await _repository.deleteOrder(id);
+    _orders.removeWhere((o) => o.id == id);
+    notifyListeners();
+  }
+}
+
+
+
+===============================================
+>>> .\lib\data\repositories\order_repository.dart
+===============================================
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/order_model.dart';
+
+class OrderRepository {
+  final CollectionReference _ordersCollection =
+      FirebaseFirestore.instance.collection('orders');
+
+  Future<void> saveOrder(OrderModel order) async {
+    await _ordersCollection.doc(order.id).set(order.toMap());
+  }
+
+  Future<OrderModel?> getOrderById(String id) async {
+    final doc = await _ordersCollection.doc(id).get();
+    if (doc.exists && doc.data() != null) {
+      return OrderModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }
+    return null;
+  }
+
+  Future<List<OrderModel>> getAllOrders() async {
+    final query = await _ordersCollection.get();
+    return query.docs
+        .map((doc) =>
+            OrderModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .toList();
+  }
+
+  Future<void> deleteOrder(String id) async {
+    await _ordersCollection.doc(id).delete();
+  }
+}
+
+
+
+===============================================
+>>> .\lib\data\services\pedido_orcamento_helpers.dart
+===============================================
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+
+class PedidoOrcamentoHelper {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Cria um novo Pedido de Orçamento e retorna [docId, pedidoIdCompleto]
+  static Future<Map<String, String>> criarPedidoOrcamento({
+    required String estofariaId,
+  }) async {
+    final now = DateTime.now();
+    final anoMes = DateFormat('yyyyMM').format(now);
+
+    final counterRef = _firestore
+        .collection('counters')
+        .doc(estofariaId)
+        .collection('pedidos_orcamento')
+        .doc(anoMes);
+
+    return await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      int current = 0;
+      if (snapshot.exists) {
+        current = snapshot.get('current') as int? ?? 0;
+      }
+
+      final novoSeq = current + 1;
+
+      // Atualiza o contador
+      transaction.set(counterRef, {'current': novoSeq}, SetOptions(merge: true));
+
+      // Gera ID do pedido com regra definida
+      final estofariaIdCurto = estofariaId.substring(0, 4).toUpperCase();
+      final pedidoIdCompleto =
+          'PO-$anoMes-${novoSeq.toString().padLeft(4, '0')}-$estofariaIdCurto';
+
+      // Cria documento em pedidos_orcamento
+      final pedidosRef = _firestore.collection('pedidos_orcamento').doc();
+      transaction.set(pedidosRef, {
+        'pedidoIdCompleto': pedidoIdCompleto,
+        'estofariaId': estofariaId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'rascunho', // default inicial
+        'stepCompleted': 0,
+      });
+
+      return {
+        'docId': pedidosRef.id,
+        'pedidoIdCompleto': pedidoIdCompleto,
+      };
+    });
+  }
+
+  /// Step 1 - Salvar dados do cliente
+  static Future<void> salvarStep1({
+    required String docId,
+    required Map<String, dynamic> dadosCliente,
+  }) async {
+    await _firestore.collection('pedidos_orcamento').doc(docId).update({
+      'dadosCliente': dadosCliente,
+      'stepCompleted': 1,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Step 2 - Salvar serviços e estofados
+  static Future<void> salvarStep2({
+    required String docId,
+    required List<String> servicos,
+    required Map<String, int> estofados,
+    String? detalhes,
+  }) async {
+    await _firestore.collection('pedidos_orcamento').doc(docId).update({
+      'servicos': servicos,
+      'estofados': estofados,
+      if (detalhes != null) 'detalhes_servico': detalhes,
+      'stepCompleted': 2,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Step 3 - Salvar URLs das fotos
+  static Future<void> salvarStep3({
+    required String docId,
+    required List<String> fotosUrls,
+  }) async {
+    await _firestore.collection('pedidos_orcamento').doc(docId).update({
+      'fotos': fotosUrls,
+      'stepCompleted': 3,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Step 4 - Finalizar pedido
+  static Future<void> finalizarPedido({
+    required String docId,
+  }) async {
+    await _firestore.collection('pedidos_orcamento').doc(docId).update({
+      'status': 'submitted',
+      'stepCompleted': 4,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+}
+
+
+
+===============================================
+>>> .\lib\data\services\storage_service.dart
+===============================================
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:firebase_storage/firebase_storage.dart';
+
+class StorageService {
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  Future<String> uploadFile(String path, File file) async {
+    final ref = _storage.ref().child(path);
+    await ref.putFile(file);
+    return await ref.getDownloadURL();
+  }
+
+  Future<String> uploadBytes(String path, Uint8List data) async {
+    final ref = _storage.ref().child(path);
+    await ref.putData(data);
+    return await ref.getDownloadURL();
+  }
+
+  Future<void> deleteFile(String path) async {
+    final ref = _storage.ref().child(path);
+    await ref.delete();
+  }
+}
+
+
+
+===============================================
+>>> .\pubspec.yaml
+===============================================
+name: estofariapro_app
+description: Estofaria Pro - Flutter + Firebase
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  go_router: ^14.2.7
+  google_fonts: ^6.2.1
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.4
+  firebase_messaging: ^15.1.3
+  provider: ^6.1.2   # <--- ADICIONADO
+  intl: ^0.18.0
+  image_picker: ^1.0.7
+  file_picker: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true  # ajuste somente o necess�rio, mantenha o resto
+
+
+

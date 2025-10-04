@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../state/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,10 +31,29 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Redireciona direto para login após 3 segundos
+    // Redireciona após 3 segundos
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
+      if (!mounted) return;
+
+      final authProvider = context.read<AuthProvider>();
+      final user = authProvider.currentUser;
+
+      if (user == null) {
         context.go('/login');
+      } else {
+        switch (user.tipo) {
+          case 'pessoaFisica':
+            context.go('/client-dashboard');
+            break;
+          case 'pessoaJuridicaEstofaria':
+            context.go('/estofaria-dashboard');
+            break;
+          case 'pessoaJuridicaFornecedor':
+            context.go('/fornecedor-dashboard');
+            break;
+          default:
+            context.go('/admin-dashboard');
+        }
       }
     });
   }

@@ -1,46 +1,30 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Salva um usuário no Firestore
-  Future<void> saveUser(UserModel user) async {
-    try {
-      await _firestore.collection('usuarios').doc(user.id).set(user.toMap());
-    } catch (e) {
-      throw Exception('Erro ao salvar usuário: $e');
-    }
+  Future<void> setDocument(
+      String collection, String docId, Map<String, dynamic> data) async {
+    await _db.collection(collection).doc(docId).set(data);
   }
 
-  /// Busca um usuário pelo ID
-  Future<UserModel?> getUserById(String id) async {
-    try {
-      final doc = await _firestore.collection('usuarios').doc(id).get();
-      if (doc.exists) {
-        return UserModel.fromMap(doc.data()!);
-      }
-      return null;
-    } catch (e) {
-      throw Exception('Erro ao buscar usuário: $e');
-    }
+  Future<Map<String, dynamic>?> getDocument(
+      String collection, String docId) async {
+    final doc = await _db.collection(collection).doc(docId).get();
+    return doc.exists ? doc.data() : null;
   }
 
-  /// Atualiza os dados de um usuário existente
-  Future<void> updateUser(UserModel user) async {
-    try {
-      await _firestore.collection('usuarios').doc(user.id).update(user.toMap());
-    } catch (e) {
-      throw Exception('Erro ao atualizar usuário: $e');
-    }
+  Future<void> updateDocument(
+      String collection, String docId, Map<String, dynamic> data) async {
+    await _db.collection(collection).doc(docId).update(data);
   }
 
-  /// Remove um usuário
-  Future<void> deleteUser(String id) async {
-    try {
-      await _firestore.collection('usuarios').doc(id).delete();
-    } catch (e) {
-      throw Exception('Erro ao deletar usuário: $e');
-    }
+  Future<void> deleteDocument(String collection, String docId) async {
+    await _db.collection(collection).doc(docId).delete();
+  }
+
+  Future<List<Map<String, dynamic>>> getCollection(String collection) async {
+    final snapshot = await _db.collection(collection).get();
+    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
   }
 }

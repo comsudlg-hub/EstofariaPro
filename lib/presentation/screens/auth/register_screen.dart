@@ -1,7 +1,18 @@
-﻿import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿// lib/presentation/screens/auth/register_screen.dart
+
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+import '../../../core/utils/validators.dart';
+import '../../../core/utils/formatters.dart'; // <<----- import novo
+import '../../../presentation/common_widgets/custom_button.dart';
+import '../../../presentation/common_widgets/custom_text_field.dart';
+import '../../../state/auth_provider.dart';
+import '../../../data/models/user_model.dart';
 
 enum UserType {
   none,
@@ -22,18 +33,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   UserType _selectedType = UserType.none;
   bool _showResumo = false;
 
-  // Form controllers
   final _formKey = GlobalKey<FormState>();
+
+  // Controllers
   final _nomeController = TextEditingController();
   final _empresaController = TextEditingController();
   final _cnpjController = TextEditingController();
   final _representanteController = TextEditingController();
   final _telefoneController = TextEditingController();
   final _emailController = TextEditingController();
-  final _loginController = TextEditingController();
   final _senhaController = TextEditingController();
 
-  // Endereço desmembrado
   final _ruaController = TextEditingController();
   final _numeroController = TextEditingController();
   final _bairroController = TextEditingController();
@@ -42,76 +52,111 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _cepController = TextEditingController();
   final _complementoController = TextEditingController();
 
-  bool _isLoading = false;
-  String? _errorMessage;
+  final List<String> _estados = [
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF",
+    "ES", "GO", "MA", "MT", "MS", "MG", "PA",
+    "PB", "PR", "PE", "PI", "RJ", "RN", "RS",
+    "RO", "RR", "SC", "SP", "SE", "TO"
+  ];
 
   @override
-  void initState() {
-    super.initState();
-    _emailController.addListener(() {
-      _loginController.text = _emailController.text;
-    });
+  void dispose() {
+    _nomeController.dispose();
+    _empresaController.dispose();
+    _cnpjController.dispose();
+    _representanteController.dispose();
+    _telefoneController.dispose();
+    _emailController.dispose();
+    _senhaController.dispose();
+    _ruaController.dispose();
+    _numeroController.dispose();
+    _bairroController.dispose();
+    _cidadeController.dispose();
+    _estadoController.dispose();
+    _cepController.dispose();
+    _complementoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _consultarCep() async {
+    final cep = _cepController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cep.length != 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("CEP inválido")),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.get(Uri.parse("https://viacep.com.br/ws/$cep/json/"));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data["erro"] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("CEP não encontrado")),
+          );
+        } else {
+          setState(() {
+            _ruaController.text = data["logradouro"] ?? "";
+            _bairroController.text = data["bairro"] ?? "";
+            _cidadeController.text = data["localidade"] ?? "";
+            _estadoController.text = data["uf"] ?? "";
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Erro ao consultar CEP")),
+      );
+    }
   }
 
   Future<void> _salvarCadastro() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _showResumo = true;
-    });
+    setState(() => _showResumo = true);
   }
 
   Future<void> _confirmarCadastro() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final authProvider = context.read<AuthProvider>();
 
-    try {
-      final userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _senhaController.text.trim(),
-      );
+    final user = UserModel(
+      uid: '',
+      nome: _nomeController.text.trim(),
+      email: _emailController.text.trim(),
+      telefone: _telefoneController.text.trim(),
+      tipo: _selectedType.name,
+      empresa: _empresaController.text.trim().isEmpty
+          ? null
+          : _empresaController.text.trim(),
+      cnpj: _cnpjController.text.trim().isEmpty
+          ? null
+          : _cnpjController.text.trim(),
+      representante: _representanteController.text.trim().isEmpty
+          ? null
+          : _representanteController.text.trim(),
+      endereco: {
+        'rua': _ruaController.text.trim(),
+        'numero': _numeroController.text.trim(),
+        'bairro': _bairroController.text.trim(),
+        'cidade': _cidadeController.text.trim(),
+        'estado': _estadoController.text.trim(),
+        'cep': _cepController.text.trim(),
+        'complemento': _complementoController.text.trim(),
+      },
+      criadoEm: DateTime.now(),
+    );
 
-      final uid = userCredential.user?.uid;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'tipo': _selectedType.name,
-          'nome': _nomeController.text.trim(),
-          'empresa': _empresaController.text.trim(),
-          'cnpj': _cnpjController.text.trim(),
-          'representante': _representanteController.text.trim(),
-          'telefone': _telefoneController.text.trim(),
-          'email': _emailController.text.trim(),
-          'login': _loginController.text.trim(),
-          'endereco': {
-            'rua': _ruaController.text.trim(),
-            'numero': _numeroController.text.trim(),
-            'bairro': _bairroController.text.trim(),
-            'cidade': _cidadeController.text.trim(),
-            'estado': _estadoController.text.trim(),
-            'cep': _cepController.text.trim(),
-            'complemento': _complementoController.text.trim(),
-          },
-          'criadoEm': FieldValue.serverTimestamp(),
-        });
-      }
+    final success = await authProvider.registerUser(
+      user: user,
+      senha: _senhaController.text.trim(),
+    );
 
-      if (mounted) Future.microtask(() => context.go('/login'));
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? "Erro ao cadastrar.";
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    if (success && mounted) {
+      context.go('/login');
     }
   }
 
-  // =================== UI Widgets ===================
-
+  // ================== UI ==================
   Widget _buildHeader(ThemeData theme) {
     return Column(
       children: [
@@ -129,19 +174,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildCardSelecao(ThemeData theme,
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
+  Widget _buildCardSelecao(
+      ThemeData theme, IconData icon, String label, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                  color: theme.colorScheme.primary.withOpacity(0.5))),
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: theme.colorScheme.primary.withOpacity(0.5),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Column(
@@ -160,13 +205,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildSelecaoInicial(ThemeData theme) {
     return Column(
       children: [
-        Text(
-          "Bem-vindo! Vamos começar seu cadastro.",
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Text("Bem-vindo! Vamos começar seu cadastro.",
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center),
         const SizedBox(height: 16),
         Text("Você gostaria de se cadastrar como:",
             style: theme.textTheme.bodyMedium),
@@ -174,20 +217,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Row(
           children: [
             _buildCardSelecao(
-              theme,
-              icon: Icons.person,
-              label: "Pessoa Física",
-              onTap: () =>
-                  setState(() => _selectedType = UserType.pessoaFisica),
-            ),
+                theme, Icons.person, "Pessoa Física", () {
+              setState(() => _selectedType = UserType.pessoaFisica);
+            }),
             const SizedBox(width: 16),
             _buildCardSelecao(
-              theme,
-              icon: Icons.business,
-              label: "Pessoa Jurídica",
-              onTap: () =>
-                  setState(() => _selectedType = UserType.pessoaJuridicaEscolha),
-            ),
+                theme, Icons.business, "Pessoa Jurídica", () {
+              setState(() => _selectedType = UserType.pessoaJuridicaEscolha);
+            }),
           ],
         ),
       ],
@@ -197,69 +234,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildEscolhaPJ(ThemeData theme) {
     return Column(
       children: [
-        Text(
-          "Informe: você é uma Estofaria ou um Fornecedor?",
-          style: theme.textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
+        Text("Você é uma Estofaria ou um Fornecedor?",
+            style: theme.textTheme.bodyLarge,
+            textAlign: TextAlign.center),
         const SizedBox(height: 24),
         Row(
           children: [
             _buildCardSelecao(
-              theme,
-              icon: Icons.chair_alt,
-              label: "Estofaria",
-              onTap: () => setState(
-                  () => _selectedType = UserType.pessoaJuridicaEstofaria),
-            ),
+                theme, Icons.chair_alt, "Estofaria", () {
+              setState(() =>
+                  _selectedType = UserType.pessoaJuridicaEstofaria);
+            }),
             const SizedBox(width: 16),
             _buildCardSelecao(
-              theme,
-              icon: Icons.inventory,
-              label: "Fornecedor",
-              onTap: () => setState(
-                  () => _selectedType = UserType.pessoaJuridicaFornecedor),
-            ),
+                theme, Icons.inventory, "Fornecedor", () {
+              setState(() =>
+                  _selectedType = UserType.pessoaJuridicaFornecedor);
+            }),
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    bool obscure = false,
-    bool enabled = true,
-    String? Function(String?)? validator,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscure,
-        enabled: enabled,
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: Colors.brown.shade50.withOpacity(0.2), // fundo leve
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.brown.shade300, // cor da borda harmonizada
-              width: 1.5,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.brown.shade600,
-              width: 2,
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -271,92 +265,137 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Column(
         children: [
           if (isPF)
-            _buildTextField(
+            CustomTextField(
               controller: _nomeController,
               label: "Nome completo",
-              validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+              validator: Validators.requiredField,
             )
           else ...[
-            _buildTextField(
+            CustomTextField(
               controller: _empresaController,
               label: "Nome da empresa",
-              validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+              validator: Validators.requiredField,
             ),
-            _buildTextField(
+            CustomTextField(
               controller: _cnpjController,
               label: "CNPJ",
-              validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+              inputFormatters: [Formatters.cnpj()],
+              validator: (value) {
+                if (_selectedType == UserType.pessoaFisica) return null;
+                return Validators.cnpj(value);
+              },
             ),
-            _buildTextField(
+            CustomTextField(
               controller: _representanteController,
               label: "Nome do representante",
-              validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+              validator: Validators.requiredField,
             ),
           ],
-          _buildTextField(
+          CustomTextField(
             controller: _telefoneController,
             label: "Telefone",
-            validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+            inputFormatters: [Formatters.phone()],
+            validator: Validators.phone,
           ),
-          _buildTextField(
+          CustomTextField(
             controller: _emailController,
             label: "E-mail",
-            validator: (v) => v!.contains("@") ? null : "E-mail inválido",
+            validator: Validators.email,
           ),
-          _buildTextField(
-            controller: _loginController,
-            enabled: false,
-            label: "Login (igual ao e-mail)",
-          ),
-          _buildTextField(
+          CustomTextField(
             controller: _senhaController,
             label: "Senha",
-            obscure: true,
-            validator: (v) => v!.length < 6 ? "Mínimo 6 caracteres" : null,
+            obscureText: true,
+            validator: Validators.password,
           ),
           const SizedBox(height: 16),
           Text("Endereço", style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          _buildTextField(
-            controller: _ruaController,
-            label: "Rua",
-            validator: (v) => v!.isEmpty ? "Obrigatório" : null,
-          ),
           Row(
             children: [
               Expanded(
-                child: _buildTextField(
-                  controller: _numeroController,
-                  label: "Número",
-                  validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+                flex: 2,
+                child: CustomTextField(
+                  controller: _cepController,
+                  label: "CEP",
+                  inputFormatters: [Formatters.cep()],
+                  validator: Validators.cep,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _consultarCep,
+                child: const Text("Consultar"),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: CustomTextField(
+                  controller: _ruaController,
+                  label: "Rua",
+                  validator: Validators.requiredField,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildTextField(
-                  controller: _bairroController,
-                  label: "Bairro",
-                  validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+                flex: 1,
+                child: CustomTextField(
+                  controller: _numeroController,
+                  label: "Nº",
+                  validator: Validators.requiredField,
                 ),
               ),
             ],
           ),
-          _buildTextField(
-            controller: _cidadeController,
-            label: "Cidade",
-            validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: CustomTextField(
+                  controller: _bairroController,
+                  label: "Bairro",
+                  validator: Validators.requiredField,
+                ),
+              ),
+            ],
           ),
-          _buildTextField(
-            controller: _estadoController,
-            label: "Estado",
-            validator: (v) => v!.isEmpty ? "Obrigatório" : null,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: CustomTextField(
+                  controller: _cidadeController,
+                  label: "Cidade",
+                  validator: Validators.requiredField,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: DropdownButtonFormField<String>(
+                  value: _estadoController.text.isNotEmpty
+                      ? _estadoController.text
+                      : null,
+                  items: _estados
+                      .map((uf) =>
+                          DropdownMenuItem(value: uf, child: Text(uf)))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _estadoController.text = value ?? "");
+                  },
+                  decoration: const InputDecoration(labelText: "UF"),
+                  validator: Validators.requiredField,
+                ),
+              ),
+            ],
           ),
-          _buildTextField(
-            controller: _cepController,
-            label: "CEP",
-            validator: (v) => v!.isEmpty ? "Obrigatório" : null,
-          ),
-          _buildTextField(
+          const SizedBox(height: 12),
+          CustomTextField(
             controller: _complementoController,
             label: "Complemento (opcional)",
           ),
@@ -364,16 +403,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: CustomButton(
+                  label: "Cancelar",
+                  type: ButtonType.outlined,
                   onPressed: () => context.go('/login'),
-                  child: const Text("Cancelar"),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
+                child: CustomButton(
+                  label: "Salvar",
                   onPressed: _salvarCadastro,
-                  child: const Text("Salvar"),
                 ),
               ),
             ],
@@ -386,7 +426,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildResumo(ThemeData theme) {
     final dados = [
       "Tipo: ${_selectedType.name}",
-      if (_selectedType == UserType.pessoaFisica) "Nome: ${_nomeController.text}",
+      if (_selectedType == UserType.pessoaFisica)
+        "Nome: ${_nomeController.text}",
       if (_selectedType != UserType.pessoaFisica) ...[
         "Empresa: ${_empresaController.text}",
         "CNPJ: ${_cnpjController.text}",
@@ -394,7 +435,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ],
       "Telefone: ${_telefoneController.text}",
       "E-mail: ${_emailController.text}",
-      "Login: ${_loginController.text}",
       "Rua: ${_ruaController.text}, Nº: ${_numeroController.text}",
       "Bairro: ${_bairroController.text}",
       "Cidade: ${_cidadeController.text}",
@@ -403,6 +443,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_complementoController.text.isNotEmpty)
         "Complemento: ${_complementoController.text}",
     ];
+
+    final authProvider = context.watch<AuthProvider>();
 
     return Column(
       children: [
@@ -418,35 +460,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        if (_errorMessage != null)
+        if (authProvider.errorMessage != null)
           Text(
-            _errorMessage!,
+            authProvider.errorMessage!,
             style: TextStyle(color: theme.colorScheme.error),
           ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
-                onPressed: _isLoading ? null : () {
-                  setState(() {
-                    _showResumo = false;
-                  });
+              child: CustomButton(
+                label: "Voltar",
+                type: ButtonType.outlined,
+                onPressed: () {
+                  setState(() => _showResumo = false);
                 },
-                child: const Text("Voltar"),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: FilledButton(
-                onPressed: _isLoading ? null : _confirmarCadastro,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text("OK"),
+              child: CustomButton(
+                label: "OK",
+                isLoading: authProvider.isLoading,
+                onPressed: authProvider.isLoading ? null : _confirmarCadastro,
               ),
             ),
           ],
@@ -468,8 +504,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             constraints: const BoxConstraints(maxWidth: 500),
             child: Card(
               elevation: 4,
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(

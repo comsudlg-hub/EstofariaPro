@@ -1,0 +1,55 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isRole(role) {
+      return request.auth != null && request.auth.token.role == role;
+    }
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    match /orcamentos/{pedidoId} {
+      allow create: if request.auth != null && isRole('estofaria');
+      allow update: if request.auth != null && (
+        (request.auth.uid == get(/databases/$(database)/documents/pedidos_orcamento/$(pedidoId)).data.clienteId
+          && request.resource.data.keys().hasOnly(['formaContrato','updatedAt']))
+        || isRole('estofaria')
+        || isAdmin()
+      );
+      allow read: if request.auth != null && (
+        request.auth.uid == get(/databases/$(database)/documents/pedidos_orcamento/$(pedidoId)).data.clienteId
+        || request.auth.uid == resource.data.estofariaId
+        || isAdmin()
+      );
+    }
+
+    match /ordens_servico/{osId} {
+      allow create: if isRole('estofaria');
+      allow update: if isRole('estofaria') && request.auth.uid == resource.data.estofariaId
+         || (request.auth != null && request.auth.uid == resource.data.clienteId
+             && request.resource.data.keys().hasOnly(['assinaturaClienteUrl','assinaturaConfirmacaoGarantia','updatedAt']))
+         || isAdmin();
+      allow read: if request.auth != null && (
+         request.auth.uid == resource.data.clienteId || request.auth.uid == resource.data.estofariaId || isAdmin()
+      );
+    }
+
+    match /pagamentos/{paymentId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.clienteId;
+      allow read: if request.auth != null && (request.auth.uid == resource.data.clienteId || request.auth.uid == resource.data.estofariaId || isAdmin());
+      allow update: if false; // updates only via backend/cloud functions
+      allow delete: if isAdmin();
+    }
+
+    match /auditoria/{logId} {
+      allow create: if isAdmin(); // or service account via admin SDK
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

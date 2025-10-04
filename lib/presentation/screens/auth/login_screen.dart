@@ -1,7 +1,30 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../../../core/utils/validators.dart';
+import '../../../presentation/common_widgets/custom_button.dart';
+import '../../../presentation/common_widgets/custom_text_field.dart';
+import '../../../state/auth_provider.dart';
+import '../../../data/models/user_model.dart';
+
+class NavigationHelper {
+  static void redirectUser(UserModel user, BuildContext context) {
+    switch (user.tipo) {
+      case 'pessoaFisica':
+        context.go('/client-dashboard');
+        break;
+      case 'pessoaJuridicaEstofaria':
+        context.go('/estofaria-dashboard');
+        break;
+      case 'pessoaJuridicaFornecedor':
+        context.go('/fornecedor-dashboard');
+        break;
+      default:
+        context.go('/admin-dashboard');
+    }
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,68 +36,35 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final _senhaController = TextEditingController();
   bool _obscurePassword = true;
-  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _senhaController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.loginUser(
+      email: _emailController.text.trim(),
+      senha: _senhaController.text.trim(),
+    );
 
-    try {
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      final uid = userCredential.user?.uid;
-
-      if (uid != null) {
-        final snapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .get();
-
-        final userData = snapshot.data();
-        final userType = userData?['tipo'] as String?;
-
-        if (!mounted) return;
-
-        switch (userType) {
-          case 'pessoaFisica':
-            context.go('/client-dashboard');
-            break;
-          case 'pessoaJuridicaEstofaria':
-            context.go('/estofaria-dashboard');
-            break;
-          case 'pessoaJuridicaFornecedor':
-            context.go('/fornecedor-dashboard');
-            break;
-          default:
-            context.go('/admin-dashboard');
-        }
-      }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? "Erro ao fazer login.";
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    if (success && mounted) {
+      final user = authProvider.currentUser!;
+      NavigationHelper.redirectUser(user, context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authProvider = context.watch<AuthProvider>();
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -88,11 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Cabeçalho
-                  Icon(
-                    Icons.chair_alt,
-                    size: 72,
-                    color: theme.colorScheme.primary,
-                  ),
+                  Icon(Icons.chair_alt,
+                      size: 72, color: theme.colorScheme.primary),
                   const SizedBox(height: 12),
                   Text(
                     "Estofaria Pro",
@@ -124,69 +111,31 @@ class _LoginScreenState extends State<LoginScreen> {
                         key: _formKey,
                         child: Column(
                           children: [
-                            // Campo de e-mail
-                            TextFormField(
+                            CustomTextField(
                               controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: "E-mail",
-                                prefixIcon: Icon(Icons.email),
-                                border: OutlineInputBorder(),
-                              ),
+                              label: "E-mail",
+                              validator: Validators.email,
                               keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return "Digite seu e-mail";
-                                }
-                                if (!value.contains('@')) {
-                                  return "E-mail inválido";
-                                }
-                                return null;
-                              },
                             ),
                             const SizedBox(height: 16),
-
-                            // Campo de senha
-                            TextFormField(
-                              controller: _passwordController,
+                            CustomTextField(
+                              controller: _senhaController,
+                              label: "Senha",
                               obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: "Senha",
-                                prefixIcon: const Icon(Icons.lock),
-                                border: const OutlineInputBorder(),
-                                suffixIcon: IconButton(
-                                  tooltip: _obscurePassword
-                                      ? "Mostrar senha"
-                                      : "Ocultar senha",
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return "Digite sua senha";
-                                }
-                                if (value.length < 6) {
-                                  return "Senha deve ter pelo menos 6 caracteres";
-                                }
-                                return null;
-                              },
+                              validator: (value) =>
+                                  value != null && value.length >= 6
+                                      ? null
+                                      : "Mínimo 6 caracteres",
                             ),
                             const SizedBox(height: 16),
 
                             // Mensagem de erro
-                            if (_errorMessage != null)
+                            if (authProvider.errorMessage != null)
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
-                                  _errorMessage!,
+                                  authProvider.errorMessage!,
                                   style: TextStyle(
                                     color: theme.colorScheme.error,
                                     fontWeight: FontWeight.bold,
@@ -198,21 +147,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             // Botão Entrar
                             SizedBox(
                               width: double.infinity,
-                              child: FilledButton(
-                                onPressed: _isLoading ? null : _login,
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text("Entrar"),
+                              child: CustomButton(
+                                label: "Entrar",
+                                isLoading: authProvider.isLoading,
+                                onPressed: _login,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -221,13 +159,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () => context.go('/reset-password'),
+                                onPressed: () =>
+                                    context.go('/reset-password'),
                                 child: const Text("Esqueci minha senha"),
                               ),
                             ),
                             TextButton(
                               onPressed: () => context.go('/register'),
-                              child: const Text("Não tem conta? Cadastre-se"),
+                              child:
+                                  const Text("Não tem conta? Cadastre-se"),
                             ),
                           ],
                         ),
