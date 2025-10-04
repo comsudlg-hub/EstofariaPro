@@ -14,7 +14,8 @@ import '../../presentation/screens/workshop/sales/pedido_orcamento_screen.dart';
 import '../../presentation/screens/workshop/sales/enviar_orcamento_screen.dart';
 import '../../presentation/screens/workshop/sales/agendar_visita_screen.dart';
 import '../../presentation/screens/workshop/sales/ordem_servico_screen.dart';
-
+import '../../presentation/screens/dashboard/my_profile_screen.dart';
+import '../../presentation/screens/dashboard/change_password_screen.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: [
@@ -58,8 +59,12 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
-      path: '/estofaria-dashboard/enviar-orcamento',
-      builder: (context, state) => const EnviarOrcamentoScreen(),
+      // Correção: A rota agora aceita um parâmetro 'docId' na URL.
+      path: '/estofaria-dashboard/enviar-orcamento/:docId',
+      builder: (context, state) {
+        final docId = state.pathParameters['docId'] ?? '';
+        return EnviarOrcamentoScreen(docId: docId);
+      },
     ),
     GoRoute(
       path: '/estofaria-dashboard/agendar-visita',
@@ -69,5 +74,11 @@ final GoRouter appRouter = GoRouter(
       path: '/estofaria-dashboard/ordem-servico',
       builder: (context, state) => const OrdemServicoScreen(),
     ),
+
+    // Rota do Perfil do Usuário
+    GoRoute(path: '/profile', builder: (context, state) => const MyProfileScreen()),
+
+    // Rota para Trocar Senha
+    GoRoute(path: '/change-password', builder: (context, state) => const ChangePasswordScreen()),
   ],
 );

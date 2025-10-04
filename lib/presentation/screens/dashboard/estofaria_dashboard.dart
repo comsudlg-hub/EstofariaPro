@@ -11,6 +11,7 @@
 // - _buildModuleCard estilo botão compacto
 // - Pedido de Orçamento agora abre nova tela (PedidoOrcamentoScreen) via router
 
+import 'dart:async'; // Ajuste: Import para TimeoutException
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,7 @@ import '../../../core/utils/text_theme_util.dart';
 import '../../common_widgets/shared_app_bar.dart';
 import '../../common_widgets/custom_button.dart';
 import '../../common_widgets/lista_pedidos_orcamento_widget.dart';
+import '../../common_widgets/empty_state.dart';
 
 // Serviços / providers
 import '../../../data/services/pedido_orcamento_helper.dart'; // Ajuste solicitado: Mantido o import correto.
@@ -191,10 +193,11 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
       try {
         final helper = PedidoOrcamentoHelper();
         // Ajuste solicitado: Passar o estofariaId como clienteId também, representando um pedido de balcão.
+        // Ajuste: Adicionado timeout para evitar erros de conversão de tipo no Flutter Web.
         final result = await helper.criarPedidoOrcamento(
           estofariaId: estofariaId,
           clienteId: estofariaId, 
-        );
+        ).timeout(const Duration(seconds: 15));
 
         final docId = result['docId'];
         final pedidoIdCompleto = result['pedidoIdCompleto'];
@@ -206,10 +209,17 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
             'pedidoIdCompleto': pedidoIdCompleto,
           });
         }
+      } on TimeoutException {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erro ao criar pedido: A operação demorou demais. Verifique sua conexão e tente novamente.')),
+          );
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao criar pedido: $e')),
+            // Ajuste: Mensagem de erro mais genérica para o usuário.
+            SnackBar(content: Text('Erro ao criar pedido: ${e.toString()}')),
           );
         }
       }
@@ -339,6 +349,8 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
         usuarioNome: currentUser?.nome,
         usuarioFotoUrl: currentUser?.fotoUrl,
         isAdmin: currentUser?.isAdmin ?? false,
+        onProfileTap: () => context.push('/profile'), // Ajuste: Adicionado callback para o perfil.
+        onChangePassword: () => context.push('/change-password'),
         onSearchTap: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Funcionalidade de busca em breve...")),
@@ -385,7 +397,10 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
                                 "Pedidos Recentes",
                                 style: createTextTheme(Theme.of(context).brightness).titleLarge,
                               ),
-                              const Divider(),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                                child: Divider(),
+                              ),
                               const Expanded(child: ListaPedidosOrcamentoWidget()), // Placeholder para a lista
                             ],
                           ),
@@ -417,7 +432,10 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
                           "Pedidos Recentes",
                           style: createTextTheme(Theme.of(context).brightness).titleLarge,
                         ),
-                        const Divider(),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Divider(),
+                        ),
                         const Expanded(child: ListaPedidosOrcamentoWidget()), // Placeholder para a lista
                       ],
                     ),

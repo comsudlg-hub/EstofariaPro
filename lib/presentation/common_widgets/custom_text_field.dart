@@ -14,6 +14,7 @@ class CustomTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final int? maxLines;
   final bool enabled;
+  final Widget? suffixIcon; // Ajuste: Adicionado o parâmetro suffixIcon.
 
   const CustomTextField({
     Key? key,
@@ -29,6 +30,7 @@ class CustomTextField extends StatelessWidget {
     this.inputFormatters,
     this.maxLines = 1,
     this.enabled = true,
+    this.suffixIcon, // Ajuste: Adicionado ao construtor.
   }) : super(key: key);
 
   @override
@@ -48,6 +50,7 @@ class CustomTextField extends StatelessWidget {
         labelText: label,
         hintText: hintText,
         border: const OutlineInputBorder(),
+        suffixIcon: suffixIcon, // Ajuste: Aplicado o suffixIcon à decoração.
         floatingLabelBehavior: FloatingLabelBehavior.always, // AJUSTE: Garante que o label flutue e não sobreponha o texto.
       ),
     );

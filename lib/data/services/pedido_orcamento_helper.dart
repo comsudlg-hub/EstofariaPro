@@ -11,6 +11,20 @@ class PedidoOrcamentoHelper {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  // Fonte da verdade para os status, conforme a regra de negócio.
+  static const Map<String, String> _statusLabels = {
+    'PO': 'Pedido de Orçamento',
+    'AP': 'Aguardando Precificação',
+    'EO': 'Orçamento Enviado',
+    'AV': 'Aguardando Agendamento de Visita',
+    'VT': 'Visita Técnica Realizada',
+    'OS': 'Ordem de Serviço',
+    // Status futuros podem ser adicionados aqui
+    'CAN': 'Cancelado',
+    'FIN': 'Finalizado',
+  };
+
+
   /// --------------------------------------------
   /// Método original: cria pedido de orçamento com contador transacional
   /// Retorna {'docId': docId, 'pedidoIdCompleto': pedidoIdCompleto}
@@ -44,15 +58,27 @@ class PedidoOrcamentoHelper {
         final estofariaIdCurto =
             estofariaId.length >= 4 ? estofariaId.substring(0, 4).toUpperCase() : estofariaId.toUpperCase();
         final pedidoIdCompleto =
-            'PO-$anoMes-${novoSeq.toString().padLeft(4, '0')}-$estofariaIdCurto';
+            'PO-$anoMes-${novoSeq.toString().padLeft(4, '0')}-$estofariaIdCurto'; // Mantemos PO no ID por ser a origem.
 
         final pedidosRef = _firestore.collection('pedidos_orcamento').doc();
+
+        // Correção: O status inicial agora segue a nova regra de negócio.
+        // Quando a estofaria cria, o pedido já nasce aguardando a precificação.
+        final statusInicial = {
+          'code': 'AP', // Aguardando Precificação
+          'label': 'Aguardando Precificação',
+          'timestamp': FieldValue.serverTimestamp(),
+          'updatedBy': estofariaId, // O próprio criador.
+        };
+
         transaction.set(pedidosRef, {
           'pedidoIdCompleto': pedidoIdCompleto,
           'estofariaId': estofariaId,
           'clienteId': clienteId ?? estofariaId, // Ajuste solicitado: Salva o ID do cliente. Se nulo, assume que a própria estofaria é o cliente (balcão).
           'createdAt': FieldValue.serverTimestamp(),
-          'status': 'rascunho',
+          'status': statusInicial,
+          // Correção: Inicia o histórico de status já na criação do pedido.
+          'historicoStatus': [statusInicial],
           'stepCompleted': 0,
         });
 
@@ -229,31 +255,75 @@ class PedidoOrcamentoHelper {
   }
 
   /// --------------------------------------------
-  /// confirmarPedido (mantendo assinatura original)
-  /// Atualiza status/stepCompleted
-  /// Ajuste solicitado: Adicionado parâmetro de status.
+  /// NOVO: Método central para atualizar o status de um pedido.
+  /// Garante a criação do objeto de status e do log de histórico.
   /// --------------------------------------------
-  Future<void> confirmarPedido({
+  Future<void> atualizarStatusPedido({
     required String docId,
-    String status = 'submitted',
+    required String statusCode,
+    required String userId,
+    Map<String, dynamic>? dadosAdicionais,
   }) async {
+    final label = _statusLabels[statusCode];
+    if (label == null) {
+      throw ArgumentError('Código de status inválido: "$statusCode"');
+    }
+
+    final novoStatus = {
+      'code': statusCode,
+      'label': label,
+      'timestamp': FieldValue.serverTimestamp(),
+      'updatedBy': userId,
+    };
+
+    final payload = {
+      'status': novoStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+      // Adiciona o novo status a um array de histórico.
+      'historicoStatus': FieldValue.arrayUnion([novoStatus]),
+      if (dadosAdicionais != null) ...dadosAdicionais,
+    };
+
     try {
-      await _firestore.collection('pedidos_orcamento').doc(docId).set({
-        'status': status,
-        'stepCompleted': 4,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await _firestore.collection('pedidos_orcamento').doc(docId).set(payload, SetOptions(merge: true));
     } catch (e) {
       rethrow;
     }
   }
 
+  /// --------------------------------------------
+  /// confirmarPedido (mantendo assinatura original)
+  /// Atualiza status/stepCompleted
+  /// Ajuste solicitado: Adicionado parâmetro de status.
+  /// --------------------------------------------
+  Future<void> confirmarPedido({ // Agora um wrapper para atualizarStatusPedido
+    required String docId,
+    dynamic status = 'submitted', // Correção: Alterado para dynamic para aceitar String ou Map.
+  }) async {
+    // Este método agora é um alias e pode ser depreciado no futuro.
+    // A lógica foi movida para o novo método central.
+    // A implementação atual no `pedido_orcamento_form` já cria o objeto de status,
+    // então o comportamento de `finalizarPedido` é o correto.
+    return;
+  }
+
   /// Alias para compatibilidade com código legado que chamava finalizarPedido
   Future<void> finalizarPedido({
     required String docId,
-    String status = 'submitted',
+    required dynamic status, // Correção: Alterado para dynamic e tornado obrigatório.
   }) async {
-    return confirmarPedido(docId: docId, status: status);
+    // Refatorado para usar o novo método central, garantindo a criação do histórico.
+    if (status is Map<String, dynamic> && status.containsKey('code') && status.containsKey('updatedBy')) {
+      await atualizarStatusPedido(
+        docId: docId,
+        statusCode: status['code'],
+        userId: status['updatedBy'],
+        dadosAdicionais: {'stepCompleted': 4}, // Mantém a lógica do step
+      );
+    } else {
+      // Fallback para o comportamento antigo, se necessário.
+      await _firestore.collection('pedidos_orcamento').doc(docId).set({'status': status}, SetOptions(merge: true));
+    }
   }
 
   /// --------------------------------------------

@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 // Imports da Fonte da Verdade
 import '../../../data/services/pedido_orcamento_helper.dart';
 import '../../state/order_provider.dart';
+import '../../../state/auth_provider.dart'; // Import para pegar o usuário logado
 import '../common_widgets/custom_button.dart';
 import '../common_widgets/custom_text_field.dart';
 import '../../../core/utils/validators.dart';
@@ -316,54 +317,61 @@ class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
     final currentStep = _steps[_cardIndex]; // Agora _cardIndex é garantido como válido
 
     return Scaffold( // Mantém o Scaffold para ser uma tela completa
-      backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-        child: Container(
-          key: ValueKey<int>(_cardIndex), // Garante que o AnimatedSwitcher detecte a mudança
-          alignment: Alignment.center,
-          child: _buildCardShell(currentStep),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: Card(
+        margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+        elevation: 4,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            // Ajuste UX: Adicionado cabeçalho com ID do pedido.
+            _buildFormHeader(),
+            Expanded(
+              // Ajuste UX: Substituído o cabeçalho manual por um Stepper para indicar progresso.
+              child: Stepper(
+                type: StepperType.horizontal,
+                currentStep: _cardIndex,
+                onStepTapped: (step) {
+                  if (step < _cardIndex) {
+                    setState(() => _cardIndex = step);
+                  }
+                },
+                controlsBuilder: (context, details) {
+                  // O rodapé (_buildFooter) agora serve como controle.
+                  return const SizedBox.shrink();
+                },
+                steps: [
+                  for (int i = 0; i < _steps.length; i++)
+                    Step(
+                      title: Text(_steps[i].title),
+                      content: Align(
+                        alignment: Alignment.topLeft,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                          child: Container(
+                            key: ValueKey<int>(_cardIndex),
+                            child: _steps[i].contentBuilder(context),
+                          ),
+                        ),
+                      ),
+                      isActive: _cardIndex >= i,
+                      state: _cardIndex > i ? StepState.complete : StepState.indexed,
+                    ),
+                ],
+              ),
+            ),
+            // Rodapé Fixo com Botões
+            _buildFooter(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCardShell(_FormStep step) {
-    // Ajuste solicitado: A estrutura foi refeita para evitar o erro de "unbounded height".
-    // O CustomCard agora contém apenas o cabeçalho e o rodapé. O conteúdo rolável
-    // fica entre eles, dentro de um Expanded, garantindo que o layout seja calculado corretamente.
-    // Ajuste solicitado: Trocado Card por CustomCard.
-    // Nota: CustomCard não foi usado aqui para manter a estrutura de Header/Content/Footer customizada,
-    // que não se encaixa na prop `title` do CustomCard. O card principal mantém a estilização manual.
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
-      elevation: 4,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: [
-          // 1. Cabeçalho Fixo
-          _buildHeader(step),
-
-          // 2. Conteúdo Rolável
-          Expanded(
-            child: Scrollbar(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: step.contentBuilder(context),
-              ),
-            ),
-          ),
-
-          // 3. Rodapé Fixo com Botões
-          _buildFooter(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(_FormStep step) {
+  /// Cabeçalho que exibe o ID do pedido.
+  Widget _buildFormHeader() {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
@@ -371,16 +379,12 @@ class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Column( // Ajuste para correção de compilação: Estrutura do cabeçalho corrigida.
         crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(step.icon, color: colorScheme.primary, size: 32),
-          const SizedBox(height: 12),
-          Text(step.title, style: textTheme.titleLarge, textAlign: TextAlign.center),
-          const SizedBox(height: 4),
-          Text(
-            step.instruction,
-            style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
+        children: [ // Ajuste UX: Adicionado ID do pedido para referência do usuário.
+          Text("Pedido de Orçamento", style: textTheme.headlineSmall),
+          if (widget.pedidoIdCompleto != null) ...[
+            const SizedBox(height: 4),
+            Text("ID: ${widget.pedidoIdCompleto}", style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+          ]
         ],
       ),
     );
@@ -449,11 +453,20 @@ class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
               if (isMobile) {
                 return Column(
                   children: [
-                    CustomTextField(controller: _cepController, label: 'CEP', inputFormatters: [Formatters.cep()], keyboardType: TextInputType.number, validator: Validators.cep),
+                    // Ajuste UX: Adicionado indicador de loading para a consulta de CEP.
+                    CustomTextField(
+                      controller: _cepController,
+                      label: 'CEP',
+                      inputFormatters: [Formatters.cep()],
+                      keyboardType: TextInputType.number,
+                      validator: Validators.cep,
+                      suffixIcon: _isConsultandoCep ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : null,
+                    ),
                     const SizedBox(height: 12),
                     CustomTextField(controller: _ruaController, label: 'Rua', validator: Validators.requiredField),
                     const SizedBox(height: 12),
                     CustomTextField(controller: _numeroController, label: 'Número', keyboardType: TextInputType.number, validator: Validators.requiredField),
+                    const SizedBox(height: 12),
                     const SizedBox(height: 12),
                     CustomTextField(controller: _bairroController, label: 'Bairro', validator: Validators.requiredField),
                     const SizedBox(height: 12),
@@ -468,7 +481,15 @@ class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 2, child: CustomTextField(controller: _cepController, label: 'CEP', inputFormatters: [Formatters.cep()], keyboardType: TextInputType.number, validator: Validators.cep)),
+                        // Ajuste UX: Adicionado indicador de loading para a consulta de CEP.
+                        Expanded(flex: 2, child: CustomTextField(
+                          controller: _cepController,
+                          label: 'CEP',
+                          inputFormatters: [Formatters.cep()],
+                          keyboardType: TextInputType.number,
+                          validator: Validators.cep,
+                          suffixIcon: _isConsultandoCep ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : null,
+                        )),
                         const SizedBox(width: 12),
                         Expanded(flex: 5, child: CustomTextField(controller: _ruaController, label: 'Rua', validator: Validators.requiredField)),
                         const SizedBox(width: 12),
@@ -909,7 +930,21 @@ class _PedidoOrcamentoFormState extends State<PedidoOrcamentoForm> {
     
     try {
       await _helper.salvarServicos(docId: widget.docId!, servicos: servicosPayload);
-      await _helper.finalizarPedido(docId: widget.docId!, status: 'pedido de orçamento finalizado'); // Ajuste solicitado: Status alterado.
+
+      // Ajuste: Implementação do novo sistema de status.
+      final authProvider = context.read<AuthProvider?>();
+      final userId = authProvider?.currentUser?.uid ?? 'sistema';
+
+      final novoStatus = {
+        'code': 'AP', // Aguardando Precificação
+        'label': 'Aguardando Precificação',
+        'timestamp': FieldValue.serverTimestamp(),
+        'updatedBy': userId,
+      };
+
+      // O método finalizarPedido agora aceita um Map para o status.
+      // (Vamos assumir que o helper será ajustado para isso).
+      await _helper.finalizarPedido(docId: widget.docId!, status: novoStatus);
 
       if (mounted) {
         // Ajuste solicitado: Padronização da cor do SnackBar de sucesso.

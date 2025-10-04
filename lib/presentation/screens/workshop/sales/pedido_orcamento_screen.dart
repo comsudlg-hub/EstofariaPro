@@ -1,4 +1,7 @@
 ﻿import 'package:flutter/material.dart'; // lib/presentation/screens/workshop/sales/pedido_orcamento_screen.dart
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../state/auth_provider.dart';
 
 // Widgets reutilizáveis
 import '../../../common_widgets/shared_app_bar.dart';
@@ -26,54 +29,45 @@ class _PedidoOrcamentoScreenState extends State<PedidoOrcamentoScreen> {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      appBar: const SharedAppBar(estofariaNome: "Pedido de Orçamento"),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: scheme.primary, width: 1),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      "Pedido de Orçamento",
-                      style: textTheme.headlineSmall?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center, // Ajuste solicitado: Título centralizado.
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "ID do Pedido: ${widget.pedidoIdCompleto}", // Ajuste solicitado: Exibindo o ID correto.
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+    // Correção: Utiliza o AuthProvider para obter o nome da estofaria dinamicamente.
+    final authProvider = context.watch<AuthProvider?>();
+    final currentUser = authProvider?.currentUser;
+    final estofariaNome = (currentUser?.tipo.startsWith('pessoaJuridica') ?? false)
+        ? (currentUser?.empresa ?? "Painel")
+        : (currentUser?.nome ?? "Painel da Estofaria");
 
-                    Expanded(
-                      child: PedidoOrcamentoForm(
-                        docId: widget.docId,
-                        pedidoIdCompleto: widget.pedidoIdCompleto,
-                        fromPanel: widget.fromPanel, // Ajuste solicitado: repassar origem
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+    return Scaffold(
+      // Ajuste solicitado: Chamada ao SharedAppBar completada para consistência.
+      appBar: SharedAppBar(
+        estofariaNome: estofariaNome,
+        estofariaLogoUrl: currentUser?.logoUrl,
+        usuarioNome: currentUser?.nome,
+        usuarioFotoUrl: currentUser?.fotoUrl,
+        isAdmin: currentUser?.isAdmin ?? false,
+        onProfileTap: () => context.push('/profile'), // Ajuste: Adicionado callback para o perfil.
+        onChangePassword: () => context.push('/change-password'),
+        onSearchTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Funcionalidade de busca em breve...")),
+          );
+        },
+        onNotificationsTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Notificações em breve...")),
+          );
+        },
+        onLogout: () {
+          context.read<AuthProvider?>()?.logoutUser();
+          context.go('/login');
+        },
+      ),
+      // Ajuste UX/UI: Removido o Card e Padding externos.
+      // A tela agora apenas hospeda o PedidoOrcamentoForm, que já é um Card
+      // e gerencia seu próprio layout interno, eliminando o "card dentro de um card".
+      body: PedidoOrcamentoForm(
+        docId: widget.docId,
+        pedidoIdCompleto: widget.pedidoIdCompleto,
+        fromPanel: widget.fromPanel,
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
