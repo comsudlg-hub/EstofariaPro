@@ -24,6 +24,7 @@ import '../../../core/utils/text_theme_util.dart';
 // Widgets reutilizáveis
 import '../../common_widgets/shared_app_bar.dart';
 import '../../common_widgets/custom_button.dart';
+import '../../common_widgets/lista_pedidos_orcamento_widget.dart';
 
 // Serviços / providers
 import '../../../data/services/pedido_orcamento_helper.dart'; // Ajuste solicitado: Mantido o import correto.
@@ -385,7 +386,7 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
                                 style: createTextTheme(Theme.of(context).brightness).titleLarge,
                               ),
                               const Divider(),
-                              Expanded(child: Center(child: Text("A lista de pedidos aparecerá aqui."))), // Placeholder para a lista
+                              const Expanded(child: ListaPedidosOrcamentoWidget()), // Placeholder para a lista
                             ],
                           ),
                         ),
@@ -417,7 +418,7 @@ class _EstofariaDashboardState extends State<EstofariaDashboard> {
                           style: createTextTheme(Theme.of(context).brightness).titleLarge,
                         ),
                         const Divider(),
-                        Expanded(child: Center(child: Text("A lista de pedidos aparecerá aqui."))), // Placeholder para a lista
+                        const Expanded(child: ListaPedidosOrcamentoWidget()), // Placeholder para a lista
                       ],
                     ),
                   ),
